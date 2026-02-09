@@ -1,0 +1,11 @@
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+httpx==0.26.0
+openai==1.12.0
+qdrant-client==1.7.1
+playwright==1.41.2
+beautifulsoup4==4.12.3
+html2text==2024.2.26
+python-dotenv==1.0.1
+pydantic==2.6.1
+pydantic-settings==2.1.0

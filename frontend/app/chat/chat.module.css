@@ -1,0 +1,143 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.adminLink {
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+.placeholder {
+  color: #94a3b8;
+  font-size: 0.9375rem;
+  padding: 1.5rem 0;
+  line-height: 1.5;
+}
+
+.userMsg,
+.assistantMsg {
+  margin-bottom: 1rem;
+}
+
+.userMsg .bubble {
+  background: #1e3a5f;
+  color: #e2e8f0;
+  margin-left: auto;
+  max-width: 85%;
+}
+
+.assistantMsg .bubble {
+  background: #1e293b;
+  color: #e2e8f0;
+  max-width: 95%;
+}
+
+.bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sources {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.sources a {
+  display: block;
+  margin-top: 0.25rem;
+  word-break: break-all;
+}
+
+.error {
+  color: #f87171;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.disclaimer {
+  font-size: 0.75rem;
+  color: #64748b;
+  padding: 0.75rem 0;
+  border-top: 1px solid #334155;
+  margin-top: auto;
+}
+
+.form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 0.9375rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.input::placeholder {
+  color: #64748b;
+}
+
+.button {
+  padding: 0.75rem 1.25rem;
+  background: #0ea5e9;
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+
+.button:hover:not(:disabled) {
+  background: #38bdf8;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -1,0 +1,45 @@
+# Environment and secrets (keep .example files)
+.env
+.env.local
+backend/.env
+frontend/.env.local
+*.env
+!*.env.example
+!*.env.local.example
+
+# Python
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs and temp
+*.log
+.npm-debug.log*
+tmp/
+temp/
+*.tmp
+
+# Playwright (if used for tests)
+playwright-report/
+test-results/

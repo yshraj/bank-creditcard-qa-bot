@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     embedding_provider: str = "openai"  # override with env EMBEDDING_PROVIDER (only openai supported)
     embed_model: str = "text-embedding-3-small"  # override with env EMBED_MODEL (OpenAI: 1536 dims)
     chat_model: str = "gpt-4o"
+    chat_temperature: float = 0.3  # lower = more deterministic, better for FAQ
+    chat_max_tokens: int = 600
     retrieval_score_threshold: float = 0.55
     chunk_size: int = 700
     chunk_overlap: int = 150

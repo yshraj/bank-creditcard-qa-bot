@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 from html import unescape
 from urllib.parse import urljoin, urlparse
@@ -18,10 +19,13 @@ from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from config import settings
 
+# Overall scrape timeout: stop after this many seconds and show error (avoids stuck URLs)
+SCRAPE_OVERALL_TIMEOUT_SEC = 60
+
 # Wait for JS-rendered content; increased for JS-heavy / API-driven pages (e.g. bank FAQs)
 POST_LOAD_WAIT_MS = 10000
-SCRAPE_TIMEOUT_MS = 60000
-WAIT_FOR_CONTENT_MS = 25000
+SCRAPE_TIMEOUT_MS = 30000  # per page.goto (reduced so total stays under SCRAPE_OVERALL_TIMEOUT_SEC when combined with waits)
+WAIT_FOR_CONTENT_MS = 15000
 ACCORDION_CLICK_DELAY_MS = 300
 SCROLL_STEPS = 10
 SCROLL_STEP_DELAY_MS = 1200
@@ -206,12 +210,23 @@ def scrape_url(
 
     # 1) Try simple HTTP first – only use if we get enough content (avoid using hero-only HTML for FAQ/JS pages)
     html_simple = _fetch_simple(url)
+    text_simple, title_simple, links_simple = "", "", []
     if html_simple:
-        text, title, links = _extract_from_html(html_simple, url, "")
-        if text and len(text) >= 600:  # require meaningful length so FAQ/JS pages fall through to Playwright
-            return text, title, links
+        text_simple, title_simple, links_simple = _extract_from_html(html_simple, url, "")
+        if text_simple and len(text_simple) >= 600:  # require meaningful length so FAQ/JS pages fall through to Playwright
+            return text_simple, title_simple, links_simple
 
-    # 2) Fall back to Playwright for JS-heavy or blocked pages
+    # 2) Fall back to Playwright for JS-heavy or blocked pages; on failure, use simple HTTP result if we have any
+    try:
+        return _run_playwright_scrape(url, _report, _extract_from_html)
+    except Exception:
+        if text_simple or title_simple or links_simple:
+            return text_simple or "", title_simple or "", links_simple or []
+        raise
+
+
+def _run_playwright_scrape(url: str, _report, _extract_from_html) -> tuple[str, str, list[str]]:
+    """Run Playwright scrape. Returns (clean_text, page_title, same_domain_links)."""
     with sync_playwright() as p:
         _report("scraping", 0)
         browser = p.chromium.launch(headless=True)
@@ -320,8 +335,14 @@ def scrape_url(
     return text, title, links
 
 
+SCRAPE_TIMEOUT_MSG = (
+    f"We are not able to scrape this URL (timeout after {SCRAPE_OVERALL_TIMEOUT_SEC} seconds). "
+    "Try again or use a different URL."
+)
+
+
 def _scrape_url_via_subprocess(url: str) -> tuple[str, str, list[str]]:
-    """On Windows, run Playwright in a subprocess to avoid NotImplementedError. Returns (text, title, links)."""
+    """Run Playwright in a subprocess with overall timeout. Returns (text, title, links)."""
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     worker = os.path.join(backend_dir, "scrape_worker.py")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
@@ -331,7 +352,7 @@ def _scrape_url_via_subprocess(url: str) -> tuple[str, str, list[str]]:
             [sys.executable, worker, url, out_path],
             cwd=backend_dir,
             capture_output=True,
-            timeout=180,
+            timeout=SCRAPE_OVERALL_TIMEOUT_SEC,
         )
         if os.path.isfile(out_path):
             with open(out_path, "r", encoding="utf-8") as f:
@@ -341,6 +362,8 @@ def _scrape_url_via_subprocess(url: str) -> tuple[str, str, list[str]]:
             return data["text"], data["title"], data["links"]
         proc.check_returncode()
         raise RuntimeError(proc.stderr.decode("utf-8", errors="replace") if proc.stderr else "Scrape worker failed")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(SCRAPE_TIMEOUT_MSG)
     finally:
         try:
             os.unlink(out_path)
@@ -353,15 +376,35 @@ def _scrape_for_ingest(
     status_store: dict | None,
     status_url: str | None,
 ) -> tuple[str, str, list[str]]:
-    """Scrape URL; on Windows use subprocess to avoid event loop issues."""
+    """Scrape URL with overall timeout; on Windows use subprocess to avoid event loop issues."""
+    if status_store and status_url:
+        status_store[status_url] = {**status_store.get(status_url, {}), "phase": "scraping", "progress": 10}
+
     if sys.platform == "win32":
-        if status_store and status_url:
-            status_store[status_url] = {**status_store.get(status_url, {}), "phase": "scraping", "progress": 10}
         text, title, links = _scrape_url_via_subprocess(url)
-        if status_store and status_url:
-            status_store[status_url] = {**status_store.get(status_url, {}), "phase": "scraping", "progress": 20}
-        return text, title, links
-    return scrape_url(url, status_store=status_store, status_url=status_url)
+    else:
+        # Non-Windows: run in-process but enforce overall timeout via thread + join
+        result: list = []
+        exc: list = []
+
+        def run():
+            try:
+                result.append(scrape_url(url, status_store=status_store, status_url=status_url))
+            except Exception as e:
+                exc.append(e)
+
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        thread.join(timeout=SCRAPE_OVERALL_TIMEOUT_SEC)
+        if thread.is_alive():
+            raise RuntimeError(SCRAPE_TIMEOUT_MSG)
+        if exc:
+            raise exc[0]
+        text, title, links = result[0]
+
+    if status_store and status_url:
+        status_store[status_url] = {**status_store.get(status_url, {}), "phase": "scraping", "progress": 20}
+    return text, title, links
 
 
 # Keywords that indicate a page is FAQ / Q&A related (only such pages are chunked and indexed)

@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     chat_model: str = "gpt-4o"
     chat_temperature: float = 0.3  # lower = more deterministic, better for FAQ
     chat_max_tokens: int = 600
+    # Query rewrite: small model turns conversational queries into clear search phrases before RAG (e.g. "suggest me cards" → "credit card options benefits")
+    enable_query_rewrite: bool = True
+    query_rewrite_model: str = "gpt-4o-mini"  # cheap/fast for rewrite step
     retrieval_score_threshold: float = 0.55
     chunk_size: int = 700
     chunk_overlap: int = 150

@@ -30,6 +30,35 @@ Use **only** the "Context" provided below (content from the bank's website). Do 
 # Max chunks to send to the model (keeps context focused and within token limits)
 MAX_CONTEXT_CHUNKS = 6
 
+QUERY_REWRITE_SYSTEM = """You rewrite user messages into a short, clear search query for finding relevant FAQ passages about credit cards and banking.
+
+Rules:
+- Output ONLY the search query, nothing else. No greeting, no explanation.
+- Focus on: card names (e.g. SBI card, HDFC), benefits, fees, eligibility, features, how to apply, comparison, best cards, rewards.
+- Expand shorthand: "benefits SBI card" → "SBI credit card benefits"; "suggest me cards" → "credit card options list benefits comparison"; "which cards best" → "best credit cards comparison benefits".
+- Keep it to one short phrase or sentence (under 15 words).
+- If the message is only a greeting (hi, hello, thanks, bye) or clearly not a question, output exactly: GREETING"""
+
+
+def _rewrite_query_for_retrieval(openai_client: OpenAI, query: str) -> str:
+    """Turn conversational query into a clear search phrase for better RAG retrieval. Returns GREETING for greetings."""
+    if not query or not query.strip():
+        return ""
+    try:
+        r = openai_client.chat.completions.create(
+            model=settings.query_rewrite_model,
+            messages=[
+                {"role": "system", "content": QUERY_REWRITE_SYSTEM},
+                {"role": "user", "content": query.strip()},
+            ],
+            max_tokens=60,
+            temperature=0.1,
+        )
+        out = (r.choices[0].message.content or "").strip()
+        return out if out else query
+    except Exception:
+        return query
+
 
 def retrieve_and_answer(query: str) -> dict:
     """Retrieve top chunks from Qdrant, filter by score, then generate answer with GPT-4o. Return {answer, sources}."""
@@ -37,23 +66,35 @@ def retrieve_and_answer(query: str) -> dict:
     ensure_collection(qdrant)
 
     openai_client = OpenAI(api_key=settings.openai_api_key)
-    query_vector = openai_client.embeddings.create(
-        model=settings.embed_model,
-        input=query,
-    ).data[0].embedding
 
-    # Retrieve more candidates, then filter by score so we keep only relevant chunks
-    results = qdrant.search(
-        collection_name=settings.collection_name,
-        query_vector=query_vector,
-        limit=settings.top_k,
-        with_payload=True,
-    )
+    # Rewrite conversational query into a clear search phrase for better retrieval
+    is_greeting = False
+    search_query = query
+    if settings.enable_query_rewrite:
+        rewritten = _rewrite_query_for_retrieval(openai_client, query)
+        if rewritten and rewritten.upper() == "GREETING":
+            is_greeting = True
+        elif rewritten:
+            search_query = rewritten
 
-    above_threshold = [
-        r for r in results
-        if r.score >= settings.retrieval_score_threshold
-    ][:MAX_CONTEXT_CHUNKS]
+    above_threshold: list = []
+    if not is_greeting:
+        query_vector = openai_client.embeddings.create(
+            model=settings.embed_model,
+            input=search_query,
+        ).data[0].embedding
+
+        results = qdrant.search(
+            collection_name=settings.collection_name,
+            query_vector=query_vector,
+            limit=settings.top_k,
+            with_payload=True,
+        )
+
+        above_threshold = [
+            r for r in results
+            if r.score >= settings.retrieval_score_threshold
+        ][:MAX_CONTEXT_CHUNKS]
 
     if above_threshold:
         context = "\n\n---\n\n".join(

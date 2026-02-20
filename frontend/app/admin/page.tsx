@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { clearData, getSources, ingestUrl, type SourceItem } from "@/lib/api";
 import styles from "./admin.module.css";
@@ -100,14 +100,14 @@ function ProgressBar({
 export default function AdminPage() {
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [url, setUrl] = useState("");
-  const [crawl, setCrawl] = useState(true);
+  const [crawl, setCrawl] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const progressMap = useProgress(sources);
 
-  async function loadSources() {
+  const loadSources = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getSources();
@@ -117,21 +117,21 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadSources();
-    const t = setInterval(loadSources, 3000);
-    return () => clearInterval(t);
   }, []);
 
-  // Poll more frequently while any ingestion is in progress for smoother progress updates
-  const hasProcessing = sources.some((s) => s.status === "processing");
+  // Poll sources - less frequently when idle, more frequently when processing
+  const hasProcessing = useMemo(() => sources.some((s) => s.status === "processing"), [sources]);
+  
   useEffect(() => {
-    if (!hasProcessing) return;
-    const t = setInterval(loadSources, 800);
+    loadSources(); // Load immediately on mount or when processing status changes
+    
+    // Use different intervals based on processing status
+    // 15 seconds when idle, 3 seconds when processing
+    const interval = hasProcessing ? 3000 : 15000;
+    
+    const t = setInterval(loadSources, interval);
     return () => clearInterval(t);
-  }, [hasProcessing]);
+  }, [hasProcessing, loadSources]); // Re-run when processing status changes to switch intervals
 
   async function handleIngest(e: React.FormEvent) {
     e.preventDefault();
@@ -167,7 +167,10 @@ export default function AdminPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1>Ingestion Dashboard</h1>
+        <div>
+          <h1>Emirates NBD Ingestion Dashboard</h1>
+          <p className={styles.subtitle}>ENBD QNA Admin</p>
+        </div>
         <div className={styles.headerActions}>
           <button
             type="button"
@@ -185,7 +188,7 @@ export default function AdminPage() {
       <main className={styles.main}>
         <section className={styles.section}>
           <h2>Ingest a URL</h2>
-          <p className={styles.hint}>Enter a bank credit card page URL. Content will be scraped, chunked, and indexed for the Q&A bot.</p>
+          <p className={styles.hint}>Enter an Emirates NBD (emiratesnbd.com) credit card page URL. Content will be scraped, chunked, and indexed for the ENBD QNA Bot.</p>
           <form onSubmit={handleIngest} className={styles.form}>
             <input
               type="url"

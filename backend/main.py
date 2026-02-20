@@ -1,7 +1,13 @@
+import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
+from urllib.parse import urlparse
+
+# Ensure ingestion/scrape logs are visible when running uvicorn
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+logging.getLogger("ingestion").setLevel(logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 
@@ -45,6 +51,10 @@ class ChatBody(BaseModel):
 @app.post("/ingest")
 def ingest(body: IngestBody, background_tasks: BackgroundTasks):
     url = str(body.url)
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if not host.endswith("emiratesnbd.com"):
+        raise HTTPException(status_code=400, detail="Ingestion only allowed for Emirates NBD (emiratesnbd.com) URLs.")
     if url in ingestion_status and ingestion_status[url].get("status") == "processing":
         raise HTTPException(status_code=409, detail="Ingestion already in progress for this URL")
     crawl_max_pages = max(1, min(body.crawl_max_pages, 50))

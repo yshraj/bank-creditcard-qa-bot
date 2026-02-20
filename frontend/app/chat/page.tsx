@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import Link from "next/link";
 import { sendChat, type ChatResponse } from "@/lib/api";
 import styles from "./chat.module.css";
@@ -44,7 +47,10 @@ export default function ChatPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1>Credit Card Q&A</h1>
+        <div>
+          <h1>Emirates NBD Credit Card Q&A</h1>
+          <p className={styles.subtitle}>ENBD QNA Bot</p>
+        </div>
         <Link href="/admin" className={styles.adminLink}>Admin → Ingest</Link>
       </header>
 
@@ -52,12 +58,29 @@ export default function ChatPage() {
         <div className={styles.messages}>
           {messages.length === 0 && (
             <div className={styles.placeholder}>
-              Ask a question about credit cards (e.g. fees, benefits, eligibility). Answers are based on content ingested from the bank&apos;s website.
+              Ask a question about Emirates NBD credit cards (e.g. fees, benefits, eligibility). Answers are powered by the ENBD QNA Bot and based on content from Emirates NBD&apos;s official website.
             </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className={m.role === "user" ? styles.userMsg : styles.assistantMsg}>
-              <div className={styles.bubble}>{m.content}</div>
+              <div className={styles.bubble}>
+                {m.role === "assistant" ? (
+                  <ReactMarkdown
+                    rehypePlugins={[rehypeSanitize]}
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({node, ...props}) => (
+                        // open links in new tab and preserve rel
+                        <a {...props} target="_blank" rel="noopener noreferrer" />
+                      ),
+                    }}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
+                ) : (
+                  <>{m.content}</>
+                )}
+              </div>
               {m.sources && m.sources.length > 0 && (
                 <div className={styles.sources}>
                   Sources: {m.sources.map((s, j) => (

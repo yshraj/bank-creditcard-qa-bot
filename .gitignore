@@ -43,3 +43,4 @@ temp/
 # Playwright (if used for tests)
 playwright-report/
 test-results/
+venv/*

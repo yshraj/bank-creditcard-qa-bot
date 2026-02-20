@@ -11,7 +11,12 @@
   border-bottom: 1px solid #334155;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.header > div {
+  flex: 1;
 }
 
 .header h1 {
@@ -19,9 +24,18 @@
   font-weight: 600;
 }
 
+.subtitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0.25rem 0 0 0;
+  font-weight: 400;
+}
+
 .adminLink {
   font-size: 0.875rem;
   color: #94a3b8;
+  white-space: nowrap;
+  padding-top: 0.125rem;
 }
 
 .main {
